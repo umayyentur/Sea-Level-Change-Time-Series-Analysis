@@ -13,7 +13,7 @@ The primary objective is to:
 * Identify the most suitable time series model for forecasting.
 * Create accurate forecasts that can help anticipate future sea level changes.
 
-## Methods
+### Methods
 
 * Data Cleaning: Unused columns and missing values were removed to improve data quality.
 * Exploratory Analysis: Graphical methods, including time series and seasonal plots, were used to observe trends and seasonal patterns.
