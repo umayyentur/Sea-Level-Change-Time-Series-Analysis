@@ -5,7 +5,7 @@ This project focuses on analyzing and forecasting global sea level changes using
 The data used in this project was sourced from Kaggle. It contains monthly observations of mean sea levels from various global regions, covering the period from December 1992 to August 2022.
 
 
-## Objective
+## Objective and Methods
 
 The primary objective is to:
 
@@ -14,7 +14,6 @@ The primary objective is to:
 * Create accurate forecasts that can help anticipate future sea level changes.
 
 
-## Methods
 
 * Data Cleaning: Unused columns and missing values were removed to improve data quality.
 * Exploratory Analysis: Graphical methods, including time series and seasonal plots, were used to observe trends and seasonal patterns.
