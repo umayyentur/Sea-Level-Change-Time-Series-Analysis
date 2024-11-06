@@ -1,0 +1,2 @@
+# Sea Level Change Time Series Analysis
+ This project focuses on analyzing and forecasting global sea level changes using time series analysis techniques. By utilizing historical data on mean sea levels from regions worldwide, this study aims to identify seasonal patterns and trends over the years. The goal is to create an accurate forecast model that captures seasonal behaviors and provides insights into potential future sea level changes.
