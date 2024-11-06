@@ -1,0 +1,251 @@
+title: "TIME SERIES MIDTERM ASSIGNMENT"
+date: '2023-11-06'
+output:
+  html_document:
+    highlight: tango
+    theme: cerulean
+    toc: yes
+    toc_float: yes
+  pdf_document:
+    toc: yes
+---
+DATASET: SeaLevel()[https://www.kaggle.com/datasets/mexwell/mean-sea-level-change]
+
+Let's start by loading the packages we may need.
+```{r}
+suppressMessages(library(ggplot2))
+suppressMessages(library(fpp2))
+suppressMessages(library(tinytex))
+suppressMessages(library(dplyr))
+suppressMessages(library(lubridate))
+suppressMessages(library(GGally))
+suppressMessages(library(olsrr))
+```
+
+Load the dataset.
+```{r}
+Data = read.csv("~/Downloads/DataSets/Change_in_Mean_Sea_Levels.csv")
+columns_to_exclude <- c("CTS_Code", "CTS_Name", "CTS_Full_Descriptor", "Source", "Indicator", "ObjectId", "ISO2")
+head(Data[, !names(Data) %in% columns_to_exclude])
+```
+Let's begin by understanding our data.
+Our dataset shows us the change in mean sea levels across regions worldwide.
+
+The change in mean sea level is estimated in millimeters, based on sea level measurements from satellite radar altimeters. Time series information is presented with 3-4 data points each month from 1992-12-17 to 2022-08-10. Estimates are provided for 24 regions worldwide along with a global estimate.
+
+Let's introduce our variables:
+
+Country: Indicates the location of the sea.
+ISO3: The location code of the sea.
+Indicator: Various indicators of mean sea level change.
+Unit: The unit type used in the data.
+Source: The source from which the data was obtained.
+Measure: Indicates which sea the data belongs to.
+Date: The date of the data.
+Value: The sea level value.
+Our dependent variable will be the "Value" variable.
+
+Check the length of the data:
+```{r}
+print(paste("Data length:", nrow(Data)))
+```
+Let's examine any missing observations.
+```{r}
+print(paste("Number of missing observations:", sum(is.na(Data)), "items"))
+```
+
+Most of the missing observations belong to the ISO2 variable. Let's clean these missing observations first.
+```{r}
+Data <- Data[, -which(names(Data) == "ISO2")]
+na = sum(is.na(Data))
+print(paste("Number of missing observations:", na, "items"))
+```
+We've removed the missing observations.
+
+Let's examine the "Measure" variable we’ll be working with. The Measure variable indicates the specific sea in a region, such as the Mediterranean ,Black Sea, etc..
+```{r}
+unique(Data$Measure)
+```
+
+Let's select the Mediterranean region as the measurement area.
+```{r}
+Data <- Data %>% filter(Measure == "Mediterranean")
+```
+
+Our data is daily. Let’s start by assigning a time series object to the Value variable and examine it through a time series plot.
+```{r}
+Data_ts = ts(Data$Value , start = decimal_date(as.Date("1992-12-17")) , frequency = 50)
+autoplot(Data_ts)+
+  xlab("Years")+
+  ylab("Sea Level")+
+  ggtitle("Sea Level Changes")
+```
+
+Seasonality and a specific trend are observed.
+
+We can organize this data monthly for easier observation.
+```{r}
+Data$Date <- as.POSIXct(sub("D", "", Data$Date), format = "%m/%d/%Y")
+Data$year = year(Data$Date)
+Data$month = month(Data$Date)
+Data$day = day(Data$Date)
+```
+
+```{r}
+Data %>% group_by(year,month) %>% summarise(Value = sum(Value)) -> monthly_value
+t = ts(monthly_value$Value, start =c(1992,12)  ,frequency = 12)
+```
+
+
+Let's draw a time series plot.
+```{r}
+autoplot(t)+
+  xlab("Years")+
+  ylab("Sea Level")+
+  ggtitle("Monthly Sea Level Changes")
+```
+The graph shows seasonal variation. At the beginning of each year, sea levels decrease, while around mid-year, sea levels increase. Between 1992-1997, there appears to be a slight upward trend. To better observe the trend in our data, let's perform a Seasonal Plot analysis.
+
+
+Let's examine it by drawing a seasonal plot.
+```{r}
+ggseasonplot(t, year.labels=TRUE, year.labels.left=TRUE) + 
+  ylab("Months") + 
+  ggtitle("Mothly Sea Levels")
+```
+Looking at the general data, we cannot say there is an overall trend; however, a slight trend is observed in specific years.
+
+Let's also examine a polar seasonal plot.
+```{r}
+ggseasonplot(t, year.labels=TRUE, year.labels.left=TRUE , polar = TRUE) + 
+  ylab("Months") + 
+  ggtitle("Monthly Sea Levels")
+```
+
+Let's check if autocorrelation exists.
+```{r}
+ggAcf(t , lag.max = 10) + 
+  ggtitle("Monthly Sea Levels Changes") + 
+  xlab("lags") + 
+  ylab("otokorelasyon")
+```
+We observe autocorrelation in this graph.
+
+Let's plot the autocorrelation for the residuals. We can verify our model is correct by checking if the residuals form a white noise series.
+```{r}
+model_res <- auto.arima(t)
+residuals <- resid(model_res)
+ggAcf(residuals)
+```
+
+Let's observe it using the Ljung-Box test.
+```{r}
+Box.test(residuals, lag=12, type = "Lj")
+```
+H0: Residuals are not a white noise series. 
+H1: Residuals are a white noise series.
+
+Looking at the Ljung-Box test, we see that the p-value is less than 0.05. Therefore, we cannot reject H0.
+
+This indicates that the residuals show autocorrelation.
+
+Let's examine the future forecast values we predicted.
+```{r}
+autoplot(t) +
+  autolayer(naive(t, h = 11), series = "naïve", PI = FALSE) +
+  autolayer(snaive(t, h = 11), series = "snaïve", PI = FALSE) +
+  autolayer(rwf(t, h = 11, drift = TRUE), series = "drift", PI = FALSE) + 
+  autolayer(meanf(t, h = 11), series = "mean", PI = FALSE)
+```
+
+Separating the last 10 observations as test data, with the rest as training data.
+```{r}
+test_sea_level= tail(t,10) 
+train_sea_level= window(t, end= c(2022,1))
+```
+
+Model using mean and appropriate naive models on the training set. The seasonal naive model is suitable for this data.
+```{r}
+library(fpp2)
+model_t_1 = meanf(train_sea_level,h= 10)
+model_t_1 
+```
+
+
+```{r}
+model_t_2 = snaive(train_sea_level, h=10)
+model_t_2
+```
+
+Let's draw a graph that shows the forecast estimates for the test and train sets on the original data.
+```{r}
+autoplot(t)+
+  autolayer(model_t_1,series="mean",PI=FALSE)+
+  autolayer(model_t_2,series="seosonal naive",PI=FALSE)+
+  autolayer(fitted(model_t_1),series="fitted model1")+
+  autolayer(fitted(model_t_2),series="fitted model2")
+```
+From the graph, we see that the fitted models make consistent predictions with the original data.
+
+Calculate MAPE and RMSE values on both the training and test sets for each model.
+```{r}
+accuracy(model_t_1,test_sea_level)
+```
+
+For model-1, the RMSE for the test set is 204.8763, and MAPE is 210.4208.
+The RMSE for the training set is 264.9176, and MAPE is 224.2509.
+```{r}
+accuracy(model_t_2, test_sea_level)
+```
+
+For model-2, the RMSE for the test set is 102.3324, and MAPE is 133.4603.
+The RMSE for the training set is 192.5415, and MAPE is 252.7879.
+
+Let's calculate the cross-validated RMSE for the training set.
+```{r}
+e1 = tsCV(train_sea_level, meanf, h = 10)
+e2 = tsCV(train_sea_level, snaive, h = 10)
+RMS1 = colMeans(e1^2, na.rm = TRUE)
+RMS2 = colMeans(e2^2, na.rm = TRUE)
+print(sum(RMS1))
+print(sum(RMS2))
+```
+Based on the RMS values, the lower value model should be preferred. Therefore, model2 is more appropriate.
+
+Based on RMSE and MAPE values, model 2 has smaller values, so it is more suitable for use.
+
+Let's check the autocorrelation and normality assumptions for model 2 (seasonal naive model).
+```{r}
+checkresiduals(model_t_2)
+```
+Looking at the histogram, the data is normally distributed.
+In the ACF graph, we see a few outlier values.
+The Ljung-Box test shows autocorrelation (p-value <0.05).
+Residuals do not form a white noise series.
+
+#8 Perform a Box-Cox transformation on the model with the best test set forecasting performance using an appropriate lambda value. Calculate the RMSE on the test set for this model.
+
+Now let's apply a Box-Cox transformation, build the model, and examine the residuals.
+```{r}
+lamda = BoxCox.lambda(train_sea_level)
+model_t_2 = snaive(train_sea_level, lambda = lamda, h = 10, biasadj = TRUE)
+checkresiduals(model_t_2)
+```
+Examining the ACF and residual graphs, we observe some outlier values. Residuals are approximately normally distributed. The Ljung-Box test shows autocorrelation.
+
+Let's check the RMSE value.
+```{r}
+accuracy(model_t_2, test_sea_level)
+```
+The RMSE value on the test set is 122.813.
+
+
+Conclusion 
+
+As a result of this study, **seasonal naive (snaive) model** was found to be the most appropriate model for modeling changes in sea levels. 
+
+According to the analyses and error values calculated on the test set, it was found that the **seasonal naive model** has a lower error rate compared to other models, thus offering better forecasting performance. Especially when the RMSE and MAPE values are analyzed, it is understood that the **snaive model** produces forecasts that are more consistent with the data compared to other models.
+
+Moreover, the fit of the model to the data was improved by applying the **Box-Cox transformation**, but residual analysis revealed that the model exhibited autocorrelation. This suggests that the residuals do not have full white noise properties and the model fails to capture certain dependence patterns. 
+
+As a result, although the seasonal naive model offers the best forecasting performance for this dataset, there are some autocorrelation patterns in the model that may require improvement. It can be stated that the model successfully predicts sea level change trends, but more complex models could be evaluated to reduce autocorrelation.
